@@ -182,6 +182,7 @@
    ============================================================ */
 const SUPABASE_URL = 'https://itozsvgkzmtjflxqiozw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_tkNvV0KHYw_SaVZyaUpw_UIe8bKo8';
+
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const DB = {
@@ -191,7 +192,7 @@ const DB = {
     return data || [];
   },
   async add(k, item) {
-    const { id, ...newItem } = item;
+    const { id, ...newItem } = item; // Remove id so database auto-generates
     const { data, error } = await supabaseClient.from(k).insert([newItem]).select();
     if (error) { console.error('Insert error:', error); return null; }
     return data ? data[0] : null;
@@ -209,17 +210,6 @@ const DB = {
 const today = () => new Date().toISOString().slice(0,10);
 const now = () => new Date().toLocaleString('en-IN');
 
-if(!localStorage.getItem('goldsun_seeded')){
-  DB.add('visitors',{name:'Rahul Sharma',company:'Bosch India',phone:'9876543210',host:'Purchase',purpose:'Supplier meeting',photo:'',status:'Approved',inTime:now(),outTime:'',date:today(),passNo:'VP-1001'});
-  DB.add('visitors',{name:'Anita Desai',company:'TCS',phone:'9876500001',host:'HR',purpose:'Interview',photo:'',status:'Pending',inTime:'',outTime:'',date:today(),passNo:'VP-1002'});
-  DB.add('employees',{empCode:'GA-201',name:'Suresh Kumar',dept:'Production',status:'In',inTime:now(),outTime:'',date:today(),late:false});
-  DB.add('vehicles',{vehicleNo:'MH12AB1234',driver:'Ramesh',purpose:'Material delivery',status:'In',inTime:now(),outTime:'',date:today()});
-  DB.add('materials',{passNo:'MP-5001',type:'Inward',supplier:'Tata Steel',invoice:'INV-887',po:'PO-4421',qty:'1200 kg',returnable:false,status:'Inside',inTime:now(),outTime:'',expectedReturn:'',date:today()});
-  DB.add('contractors',{name:'Vijay Patil',company:'Skyline Civil',permit:'Work Permit',validity:'2026-12-31',status:'Active',date:today()});
-  DB.add('incidents',{title:'Unauthorized parking',location:'Gate 2',severity:'Low',description:'Truck parked in no-parking zone',status:'Open',date:today(),time:now()});
-  localStorage.setItem('goldsun_seeded','1');
-}
-
 /* ============================================================
    AUTH & PERMISSIONS
    ============================================================ */
@@ -231,41 +221,20 @@ const ROLE_PERMISSIONS = {
   DeptHead: ['dashboard', 'visitors', 'reports']
 };
 
-function login(){
-  async function login() {  // add async
-  const u = document.getElementById('loginUser').value.trim();
-  const r = document.getElementById('loginRole').value;
-  if (!u) { alert('Enter username'); return; }
-
-  currentUser = { name: u, role: r };
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('whoAmI').textContent = `${u} (${r})`;
-
-  buildNav();
-  await navigate('dashboard');  // add await
+async function login(){
+  const u=document.getElementById('loginUser').value.trim();
+  const r=document.getElementById('loginRole').value;
+  if(!u){alert('Enter username');return;}
+  
+  currentUser={name:u,role:r};
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('whoAmI').textContent=`${u} (${r})`;
+  
+  buildNav(); 
+  await navigate('dashboard'); 
 }
-}
-function logout(){ async function navigate(id) {  // add async
-  const allowed = ROLE_PERMISSIONS[currentUser.role] || [];
-  if (!allowed.includes(id)) {
-    alert("You do not have permission to view this page.");
-    return;
-  }
-
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.id === id));
-  const main = document.getElementById('main');
-
-  // All render functions need to support async
-  if (id === 'dashboard') main.innerHTML = await renderDashboard();
-  else if (id === 'visitors') main.innerHTML = await renderVisitors();
-  else if (id === 'employees') main.innerHTML = await renderEmployees();
-  else if (id === 'vehicles') main.innerHTML = await renderVehicles();
-  else if (id === 'materials') main.innerHTML = await renderMaterials();
-  else if (id === 'contractors') main.innerHTML = await renderContractors();
-  else if (id === 'incidents') main.innerHTML = await renderIncidents();
-  else if (id === 'reports') main.innerHTML = await renderReports();
-} }
+function logout(){ location.reload(); }
 
 /* ============================================================
    NAVIGATION
@@ -288,7 +257,7 @@ function buildNav(){
   nav.innerHTML=visibleMenu.map(m=>`<a data-id="${m.id}" onclick="navigate('${m.id}')">${m.label}</a>`).join('');
 }
 
-function navigate(id){
+async function navigate(id){
   const allowed = ROLE_PERMISSIONS[currentUser.role] || [];
   if(!allowed.includes(id)) {
     alert("You do not have permission to view this page.");
@@ -298,22 +267,22 @@ function navigate(id){
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.id===id));
   const main=document.getElementById('main');
   
-  if(id==='dashboard') main.innerHTML=renderDashboard();
-  else if(id==='visitors') main.innerHTML=renderVisitors();
-  else if(id==='employees') main.innerHTML=renderEmployees();
-  else if(id==='vehicles') main.innerHTML=renderVehicles();
-  else if(id==='materials') main.innerHTML=renderMaterials();
-  else if(id==='contractors') main.innerHTML=renderContractors();
-  else if(id==='incidents') main.innerHTML=renderIncidents();
-  else if(id==='reports') main.innerHTML=renderReports();
+  if(id==='dashboard') main.innerHTML=await renderDashboard();
+  else if(id==='visitors') main.innerHTML=await renderVisitors();
+  else if(id==='employees') main.innerHTML=await renderEmployees();
+  else if(id==='vehicles') main.innerHTML=await renderVehicles();
+  else if(id==='materials') main.innerHTML=await renderMaterials();
+  else if(id==='contractors') main.innerHTML=await renderContractors();
+  else if(id==='incidents') main.innerHTML=await renderIncidents();
+  else if(id==='reports') main.innerHTML=await renderReports();
 }
 
 /* ============================================================
    DASHBOARD
    ============================================================ */
-function renderDashboard(){
-  const v=DB.get('visitors'), e=DB.get('employees'), veh=DB.get('vehicles'),
-        m=DB.get('materials'), c=DB.get('contractors'), inc=DB.get('incidents');
+async function renderDashboard(){
+  const v=await DB.get('visitors'), e=await DB.get('employees'), veh=await DB.get('vehicles'),
+        m=await DB.get('materials'), c=await DB.get('contractors'), inc=await DB.get('incidents');
   const t=today();
   const insideV=v.filter(x=>x.inTime&&!x.outTime).length;
   const insideE=e.filter(x=>x.status==='In').length;
@@ -348,16 +317,16 @@ function renderDashboard(){
       </tr>`).join('')}</table>` : '<div class="empty">No pending approvals ✅</div>'}
   </div>`;
 }
-function approveVisitor(id){ DB.update('visitors',id,{status:'Approved'}); navigate('dashboard'); }
-function rejectVisitor(id){ DB.update('visitors',id,{status:'Rejected'}); navigate('dashboard'); }
+async function approveVisitor(id){ await DB.update('visitors',id,{status:'Approved'}); navigate('dashboard'); }
+async function rejectVisitor(id){ await DB.update('visitors',id,{status:'Rejected'}); navigate('dashboard'); }
 
 /* ============================================================
-   VISITORS (With Photo Upload)
+   VISITORS
    ============================================================ */
 let pendingPhoto='';
 
-function renderVisitors(){
-  const v=DB.get('visitors');
+async function renderVisitors(){
+  const v=await DB.get('visitors');
   
   const regForm = `
   <div class="card">
@@ -403,36 +372,39 @@ function capturePhoto(e){
   const r=new FileReader(); r.onload=ev=>pendingPhoto=ev.target.result; r.readAsDataURL(f);
 }
 
-function addVisitor(){
+async function addVisitor(){
   const name=document.getElementById('v_name').value.trim();
   if(!name){alert('Name required');return;}
-  const count=DB.get('visitors').length+1001;
+  
+  const currentVisitors = await DB.get('visitors');
+  const count = currentVisitors.length + 1001;
+  
   const pass={passNo:'VP-'+count,name,
     company:document.getElementById('v_company').value,
     phone:document.getElementById('v_phone').value,
     host:document.getElementById('v_host').value,
     purpose:document.getElementById('v_purpose').value,
     photo:pendingPhoto,status:'Pending',inTime:'',outTime:'',date:today()};
-  pendingPhoto=''; // Reset after save
-  DB.add('visitors',pass);
+  pendingPhoto=''; 
+  await DB.add('visitors',pass);
   alert('Visitor registered. Pass '+pass.passNo+' pending approval.');
   navigate('visitors');
 }
 
-function checkInVisitor(id){ 
-  DB.update('visitors',id,{inTime:now()}); 
+async function checkInVisitor(id){ 
+  await DB.update('visitors',id,{inTime:now()}); 
   navigate('visitors'); 
-  printGatePass(id); // Trigger print immediately
+  printGatePass(id); 
 }
 
-function checkOutVisitor(id){ 
+async function checkOutVisitor(id){ 
   const confirmHandover = confirm("Has the visitor physically handed over the printed Gate Pass to Security?");
   if(!confirmHandover) {
     alert("Check-out cancelled. Security must collect the physical pass first.");
     return;
   }
   
-  DB.update('visitors',id,{outTime:now()}); 
+  await DB.update('visitors',id,{outTime:now()}); 
   navigate('visitors'); 
   
   if(confirm("Gate Pass collected. Do you want to print a 'Final Exit' copy with checkout time?")) {
@@ -440,8 +412,9 @@ function checkOutVisitor(id){
   }
 }
 
-function showQR(id){
-  const v=DB.get('visitors').find(x=>x.id==id);
+async function showQR(id){
+  const allVisitors = await DB.get('visitors');
+  const v = allVisitors.find(x=>x.id==id);
   if(!v)return;
   document.getElementById('qrDetails').innerHTML=
     `<p><b>${v.name}</b></p><p>${v.company||''}</p><p>Pass: ${v.passNo}</p><p>Host: ${v.host}</p><p>Status: ${v.status}</p>`;
@@ -454,8 +427,9 @@ function closeQR(){ document.getElementById('qrModal').classList.add('hidden'); 
 /* ============================================================
    PRINT GATE PASS LOGIC
    ============================================================ */
-function printGatePass(id) {
-  const v = DB.get('visitors').find(x=>x.id==id);
+async function printGatePass(id) {
+  const allVisitors = await DB.get('visitors');
+  const v = allVisitors.find(x=>x.id==id);
   if(!v) return;
 
   const passType = v.outTime ? "EXIT COPY" : "ENTRY COPY";
@@ -502,8 +476,8 @@ function printGatePass(id) {
 /* ============================================================
    EMPLOYEES
    ============================================================ */
-function renderEmployees(){
-  const e=DB.get('employees');
+async function renderEmployees(){
+  const e=await DB.get('employees');
   return `
   <h2>Employee Entry / Exit</h2>
   <div class="card">
@@ -532,21 +506,21 @@ function renderEmployees(){
     </table>
   </div>`;
 }
-function addEmployee(){
+async function addEmployee(){
   const code=document.getElementById('e_code').value.trim();
   const name=document.getElementById('e_name').value.trim();
   if(!code||!name){alert('Code and name required');return;}
-  DB.add('employees',{empCode:code,name,dept:document.getElementById('e_dept').value,
+  await DB.add('employees',{empCode:code,name,dept:document.getElementById('e_dept').value,
     late:document.getElementById('e_late').value==='true',status:'In',inTime:now(),outTime:'',date:today()});
   navigate('employees');
 }
-function empOut(id){ DB.update('employees',id,{status:'Out',outTime:now()}); navigate('employees'); }
+async function empOut(id){ await DB.update('employees',id,{status:'Out',outTime:now()}); navigate('employees'); }
 
 /* ============================================================
    VEHICLES
    ============================================================ */
-function renderVehicles(){
-  const v=DB.get('vehicles');
+async function renderVehicles(){
+  const v=await DB.get('vehicles');
   return `
   <h2>Vehicle Management</h2>
   <div class="card">
@@ -572,20 +546,20 @@ function renderVehicles(){
     </table>
   </div>`;
 }
-function addVehicle(){
+async function addVehicle(){
   const no=document.getElementById('veh_no').value.trim();
   if(!no){alert('Vehicle number required');return;}
-  DB.add('vehicles',{vehicleNo:no,driver:document.getElementById('veh_driver').value,
+  await DB.add('vehicles',{vehicleNo:no,driver:document.getElementById('veh_driver').value,
     purpose:document.getElementById('veh_purpose').value,status:'In',inTime:now(),outTime:'',date:today()});
   navigate('vehicles');
 }
-function vehOut(id){ DB.update('vehicles',id,{status:'Out',outTime:now()}); navigate('vehicles'); }
+async function vehOut(id){ await DB.update('vehicles',id,{status:'Out',outTime:now()}); navigate('vehicles'); }
 
 /* ============================================================
    MATERIALS
    ============================================================ */
-function renderMaterials(){
-  const m=DB.get('materials');
+async function renderMaterials(){
+  const m=await DB.get('materials');
   const t=today();
   return `
   <h2>Material Gate Pass</h2>
@@ -617,9 +591,9 @@ function renderMaterials(){
     </table>
   </div>`;
 }
-function addMaterial(){
-  const count=DB.get('materials').length+5001;
-  DB.add('materials',{
+async function addMaterial(){
+  const count=(await DB.get('materials')).length+5001;
+  await DB.add('materials',{
     passNo:'MP-'+count,
     type:document.getElementById('m_type').value,
     supplier:document.getElementById('m_supplier').value,
@@ -632,13 +606,13 @@ function addMaterial(){
   });
   navigate('materials');
 }
-function matOut(id){ DB.update('materials',id,{status:'Out',outTime:now()}); navigate('materials'); }
+async function matOut(id){ await DB.update('materials',id,{status:'Out',outTime:now()}); navigate('materials'); }
 
 /* ============================================================
    CONTRACTORS
    ============================================================ */
-function renderContractors(){
-  const c=DB.get('contractors');
+async function renderContractors(){
+  const c=await DB.get('contractors');
   return `
   <h2>Contractor Management</h2>
   <div class="card">
@@ -663,21 +637,21 @@ function renderContractors(){
     </table>
   </div>`;
 }
-function addContractor(){
+async function addContractor(){
   const name=document.getElementById('c_name').value.trim();
   if(!name){alert('Name required');return;}
-  DB.add('contractors',{name,company:document.getElementById('c_company').value,
+  await DB.add('contractors',{name,company:document.getElementById('c_company').value,
     permit:document.getElementById('c_permit').value,
     validity:document.getElementById('c_valid').value,status:'Active',date:today()});
   navigate('contractors');
 }
-function delContractor(id){ DB.remove('contractors',id); navigate('contractors'); }
+async function delContractor(id){ await DB.remove('contractors',id); navigate('contractors'); }
 
 /* ============================================================
    INCIDENTS
    ============================================================ */
-function renderIncidents(){
-  const inc=DB.get('incidents');
+async function renderIncidents(){
+  const inc=await DB.get('incidents');
   return `
   <h2>Security Incident Register</h2>
   <div class="card">
@@ -704,20 +678,20 @@ function renderIncidents(){
     </table>
   </div>`;
 }
-function addIncident(){
+async function addIncident(){
   const title=document.getElementById('i_title').value.trim();
   if(!title){alert('Title required');return;}
-  DB.add('incidents',{title,location:document.getElementById('i_loc').value,
+  await DB.add('incidents',{title,location:document.getElementById('i_loc').value,
     severity:document.getElementById('i_sev').value,
     description:document.getElementById('i_desc').value,status:'Open',date:today(),time:now()});
   navigate('incidents');
 }
-function closeInc(id){ DB.update('incidents',id,{status:'Closed'}); navigate('incidents'); }
+async function closeInc(id){ await DB.update('incidents',id,{status:'Closed'}); navigate('incidents'); }
 
 /* ============================================================
    REPORTS
    ============================================================ */
-function renderReports(){
+async function renderReports(){
   return `
   <h2>Reports & Export</h2>
   <div class="card">
@@ -739,13 +713,16 @@ function renderReports(){
   </div>`;
 }
 let lastReport=[];
-function runReport(){
+async function runReport(){
   const mod=document.getElementById('r_module').value;
   const from=document.getElementById('r_from').value, to=document.getElementById('r_to').value;
-  let data=DB.get(mod).filter(x=>{
+  let data=await DB.get(mod);
+  
+  data = data.filter(x=>{
     const d=x.date||'';
     return (!from||d>=from)&&(!to||d<=to);
   });
+  
   lastReport=data; lastReport._module=mod;
   const out=document.getElementById('reportOut');
   if(!data.length){out.innerHTML='<div class="empty">No records in this range</div>';return;}
