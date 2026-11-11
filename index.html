@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Goldsun Auto – Factory Security Management</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,sans-serif}
   :root{--primary:#1a4d8f;--accent:#ff6b00;--bg:#f4f6f9;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--success:#16a34a;--danger:#dc2626;--warn:#f59e0b}
@@ -180,11 +181,35 @@
    DATA LAYER
    ============================================================ */
 const DB = {
-  get(k){ return JSON.parse(localStorage.getItem('goldsun_'+k) || '[]'); },
-  set(k,v){ localStorage.setItem('goldsun_'+k, JSON.stringify(v)); },
-  add(k,item){ const a=this.get(k); item.id=item.id||Date.now()+Math.floor(Math.random()*1000); a.unshift(item); this.set(k,a); return item; },
-  update(k,id,patch){ const a=this.get(k); const i=a.findIndex(x=>x.id==id); if(i>-1){a[i]={...a[i],...patch}; this.set(k,a);} },
-  remove(k,id){ this.set(k,this.get(k).filter(x=>x.id!=id)); }
+ // ====== Fill in your Supabase credentials ======
+const SUPABASE_URL = https://itozsvgkzmtjflxqiozw.supabase.co/rest/v1/;
+const SUPABASE_KEY = sb_publishable_tKnYV0KH4Yw_SaVZyaAupw_UIe8bKo8;
+// ==========================================
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DB = {
+  async get(k) {
+    const { data, error } = await supabaseClient.from(k).select('*').order('id', { ascending: false });
+    if (error) { console.error('Read error:', error); return []; }
+    return data || [];
+  },
+  async add(k, item) {
+    // Remove id so database auto-generates it
+    const { id, ...newItem } = item;
+    const { data, error } = await supabaseClient.from(k).insert([newItem]).select();
+    if (error) { console.error('Insert error:', error); return null; }
+    return data ? data[0] : null;
+  },
+  async update(k, id, patch) {
+    const { error } = await supabaseClient.from(k).update(patch).eq('id', id);
+    if (error) console.error('Update error:', error);
+  },
+  async remove(k, id) {
+    const { error } = await supabaseClient.from(k).delete().eq('id', id);
+    if (error) console.error('Delete error:', error);
+  }
+};
 };
 
 const today = () => new Date().toISOString().slice(0,10);
@@ -213,19 +238,40 @@ const ROLE_PERMISSIONS = {
 };
 
 function login(){
-  const u=document.getElementById('loginUser').value.trim();
-  const r=document.getElementById('loginRole').value;
-  if(!u){alert('Enter username');return;}
-  
-  currentUser={name:u,role:r};
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-  document.getElementById('whoAmI').textContent=`${u} (${r})`;
-  
-  buildNav(); 
-  navigate('dashboard');
+  async function login() {  // add async
+  const u = document.getElementById('loginUser').value.trim();
+  const r = document.getElementById('loginRole').value;
+  if (!u) { alert('Enter username'); return; }
+
+  currentUser = { name: u, role: r };
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('whoAmI').textContent = `${u} (${r})`;
+
+  buildNav();
+  await navigate('dashboard');  // add await
 }
-function logout(){ location.reload(); }
+}
+function logout(){ async function navigate(id) {  // add async
+  const allowed = ROLE_PERMISSIONS[currentUser.role] || [];
+  if (!allowed.includes(id)) {
+    alert("You do not have permission to view this page.");
+    return;
+  }
+
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.id === id));
+  const main = document.getElementById('main');
+
+  // All render functions need to support async
+  if (id === 'dashboard') main.innerHTML = await renderDashboard();
+  else if (id === 'visitors') main.innerHTML = await renderVisitors();
+  else if (id === 'employees') main.innerHTML = await renderEmployees();
+  else if (id === 'vehicles') main.innerHTML = await renderVehicles();
+  else if (id === 'materials') main.innerHTML = await renderMaterials();
+  else if (id === 'contractors') main.innerHTML = await renderContractors();
+  else if (id === 'incidents') main.innerHTML = await renderIncidents();
+  else if (id === 'reports') main.innerHTML = await renderReports();
+} }
 
 /* ============================================================
    NAVIGATION
