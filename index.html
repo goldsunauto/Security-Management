@@ -11,7 +11,6 @@
   :root{--primary:#1a4d8f;--accent:#ff6b00;--bg:#f4f6f9;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--success:#16a34a;--danger:#dc2626;--warn:#f59e0b}
   body{background:var(--bg);color:var(--text)}
   
-  /* Login */
   #loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a4d8f,#0f2f5c)}
   .login-box{background:#fff;padding:40px;border-radius:12px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
   .login-box h1{color:var(--primary);font-size:22px;margin-bottom:4px}
@@ -21,7 +20,6 @@
   .login-box button:hover{background:#14396b}
   .login-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:12px}
   
-  /* App layout */
   #app{display:none}
   header{background:var(--primary);color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
   header h1{font-size:18px;font-weight:600}
@@ -75,7 +73,6 @@
   .filter-bar input,.filter-bar select{padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px}
   .empty{text-align:center;color:var(--muted);padding:30px;font-size:13px}
   
-  /* PRINT GATE PASS STYLES */
   #printSection { display: none; }
   
   @media print {
@@ -105,26 +102,10 @@
     .pass-details td { padding: 8px 5px; border-bottom: 1px dotted #999; font-size: 15px; }
     .pass-details td:first-child { font-weight: bold; width: 40%; }
     
-    .pass-signatures {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 60px;
-    }
+    .pass-signatures { display: flex; justify-content: space-between; margin-top: 60px; }
     .signature-box { text-align: center; width: 45%; }
-    .signature-line {
-        border-top: 1px solid #000;
-        margin-top: 50px;
-        padding-top: 8px;
-        font-weight: bold;
-        font-size: 14px;
-    }
-    .pass-footer {
-        text-align: center;
-        font-size: 12px;
-        margin-top: 40px;
-        border-top: 1px solid #ccc;
-        padding-top: 10px;
-    }
+    .signature-line { border-top: 1px solid #000; margin-top: 50px; padding-top: 8px; font-weight: bold; font-size: 14px; }
+    .pass-footer { text-align: center; font-size: 12px; margin-top: 40px; border-top: 1px solid #ccc; padding-top: 10px; }
     @page { margin: 15mm; }
   }
 </style>
@@ -187,14 +168,19 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const DB = {
   async get(k) {
-    const { data, error } = await supabaseClient.from(k).select('*').order('id', { ascending: false });
-    if (error) { console.error('Read error:', error); return []; }
-    return data || [];
+    try {
+      const { data, error } = await supabaseClient.from(k).select('*').order('id', { ascending: false });
+      if (error) { console.error(`Read error on ${k}:`, error.message); return []; }
+      return data || [];
+    } catch (err) {
+      console.error(`Catch error on ${k}:`, err);
+      return []; // Fallback to empty array so app doesn't crash
+    }
   },
   async add(k, item) {
-    const { id, ...newItem } = item; // Remove id so database auto-generates
+    const { id, ...newItem } = item;
     const { data, error } = await supabaseClient.from(k).insert([newItem]).select();
-    if (error) { console.error('Insert error:', error); return null; }
+    if (error) { console.error('Insert error:', error); alert('Database Error: ' + error.message); return null; }
     return data ? data[0] : null;
   },
   async update(k, id, patch) {
@@ -267,6 +253,9 @@ async function navigate(id){
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.id===id));
   const main=document.getElementById('main');
   
+  // Show loading text while fetching from database
+  main.innerHTML = '<div class="empty">Loading data...</div>';
+
   if(id==='dashboard') main.innerHTML=await renderDashboard();
   else if(id==='visitors') main.innerHTML=await renderVisitors();
   else if(id==='employees') main.innerHTML=await renderEmployees();
@@ -281,10 +270,16 @@ async function navigate(id){
    DASHBOARD
    ============================================================ */
 async function renderDashboard(){
-  const v=await DB.get('visitors'), e=await DB.get('employees'), veh=await DB.get('vehicles'),
-        m=await DB.get('materials'), c=await DB.get('contractors'), inc=await DB.get('incidents');
+  // Fetch all tables securely
+  const v=await DB.get('visitors');
+  const e=await DB.get('employees');
+  const veh=await DB.get('vehicles');
+  const m=await DB.get('materials');
+  const c=await DB.get('contractors');
+  const inc=await DB.get('incidents');
+  
   const t=today();
-  const insideV=v.filter(x=>x.inTime&&!x.outTime).length;
+  const insideV=v.filter(x=>x.inTime && !x.outTime).length;
   const insideE=e.filter(x=>x.status==='In').length;
   const insideVeh=veh.filter(x=>x.status==='In').length;
   
@@ -307,18 +302,26 @@ async function renderDashboard(){
       <div class="stat danger"><div class="num">${inc.filter(x=>x.status==='Open').length}</div><div class="label">Open Incidents</div></div>
     ` : ''}
   </div>
+  
   <div class="card">
     <h3>Pending Visitor Approvals</h3>
     ${pending ? `<table><tr><th>Pass</th><th>Name</th><th>Company</th><th>Host</th><th>Action</th></tr>
       ${pendingVisitors.map(x=>`<tr>
-        <td>${x.passNo}</td><td>${x.name}</td><td>${x.company}</td><td>${x.host}</td>
+        <td>${x.passNo}</td><td>${x.name}</td><td>${x.company || '-'}</td><td>${x.host}</td>
         <td><button class="btn btn-success btn-sm" onclick="approveVisitor('${x.id}')">Approve</button>
         <button class="btn btn-danger btn-sm" onclick="rejectVisitor('${x.id}')">Reject</button></td>
       </tr>`).join('')}</table>` : '<div class="empty">No pending approvals ✅</div>'}
   </div>`;
 }
-async function approveVisitor(id){ await DB.update('visitors',id,{status:'Approved'}); navigate('dashboard'); }
-async function rejectVisitor(id){ await DB.update('visitors',id,{status:'Rejected'}); navigate('dashboard'); }
+
+async function approveVisitor(id){ 
+  await DB.update('visitors',id,{status:'Approved'}); 
+  navigate('dashboard'); 
+}
+async function rejectVisitor(id){ 
+  await DB.update('visitors',id,{status:'Rejected'}); 
+  navigate('dashboard'); 
+}
 
 /* ============================================================
    VISITORS
@@ -376,6 +379,7 @@ async function addVisitor(){
   const name=document.getElementById('v_name').value.trim();
   if(!name){alert('Name required');return;}
   
+  // Generate Pass Number based on array length
   const currentVisitors = await DB.get('visitors');
   const count = currentVisitors.length + 1001;
   
@@ -385,8 +389,10 @@ async function addVisitor(){
     host:document.getElementById('v_host').value,
     purpose:document.getElementById('v_purpose').value,
     photo:pendingPhoto,status:'Pending',inTime:'',outTime:'',date:today()};
+  
   pendingPhoto=''; 
   await DB.add('visitors',pass);
+  
   alert('Visitor registered. Pass '+pass.passNo+' pending approval.');
   navigate('visitors');
 }
